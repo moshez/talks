@@ -1,0 +1,517 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Pants</title>
+
+		<link rel="stylesheet" href="reveal.js-3.3.0/css/reveal.css">
+		<link rel="stylesheet" href="reveal.js-3.3.0/css/theme/serif.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="reveal.js-3.3.0/lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'reveal.js-3.3.0/css/print/pdf.css' : 'reveal.js-3.3.0/css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+<section>
+<h1>Pants</h1>
+<h2>Building Python for Fun and Profit</h2>
+<h3>Moshe Zadka</h3>
+<h3><a href="https://github.com/moshez">https://github.com/moshez</a></h3>
+</section>
+
+<section>
+<h1>Motivation</h1>
+<aside class="notes">
+Why do we want to build Python? Let's talk a little
+about how common deployment scenarios work.
+</aside>
+</section>
+
+<section>
+<h2>Deploy via pip install</h2>
+<p>On source machine:</p>
+<pre><code>
+$ python setup.py sdist
+</code></pre>
+
+<p>On target machine:</p>
+<pre><code>
+$ pip install -r requirements.txt
+$ tar xvzf *.tar.gz
+$ python setup.py install
+</code></pre>
+</section>
+
+<section>
+<h2>Deploy via virtualenv</h2>
+<p>On source machine:</p>
+<pre><code>
+$ virtualenv /myenv
+$ /myenv/bin/pip install -r requirements.txt
+$ /myenv/bin/python setup.py install
+$ tar cvzf deploy.tar.gz /myenv
+</code></pre>
+<p>On target machine:</p>
+<pre><code>
+$ cd /
+$ tar xvzf deploy.tar.gz
+</code></pre>
+</section>
+
+<section>
+<h2>Dream</h2>
+<p>On source machine:</p>
+<pre><code>
+$ magic-command -o one-file
+</code></pre>
+<p>On target machine:</p>
+<pre><code>
+$ # relax
+</code></pre>
+</section>
+
+<section>
+<h2>Using Pex</h2>
+<p>On source machine:</p>
+<pre><code>
+$ virtualenv /myenv
+$ /myenv/bin/pip install pex
+$ /myenv/bin/pex -o one-file -r requirements.txt .
+</pre></code>
+<p>On target machine:</p>
+<pre><code>
+$ # relax
+</code></pre>
+</section>
+
+<section>
+<h2>How Pex works Pt.1</h2>
+<pre><code>
+$ python file.zip
+</code></pre>
+<ul>
+<li class="fragment">Add to <code>sys.path</code></li>
+<li class="fragment">Run <code>__main__.py</code></li>
+</ul>
+</section>
+
+<section>
+<h2>How Pex works Pt.2</h2>
+<ul>
+<li class="fragment">Zip files can have arbitrary content prepended</li>
+<li class="fragment"><code>#!/usr/bin/env python</code></li>
+</ul>
+</section>
+
+<section>
+<h2>Pex Limitations</h2>
+<ul>
+<li>Core Python</li>
+<li>Shared libraries</li>
+</section>
+
+<section>
+<h2>Running Pants</h2>
+<pre><code>
+$ ./pants goals
+</code></pre>
+<p class="fragment">
+Root where <code>pants</code> is!
+</p>
+</section>
+
+<section>
+<h2>Pants Test</h2>
+<pre><code>
+$ ./pants test hello:hello-test
+...
+hello/test_hello.py F
+
+==================== FAILURES ====================
+_________________ test_something _________________
+
+    def test_something():
+>       assert 1 == 2
+E       assert 1 == 2
+
+hello/test_hello.py:2: AssertionError
+============ 1 failed in 0.01 seconds ============
+FAILURE
+...
+</code></pre>
+</section>
+
+<section>
+<h2>Pants Run</h2>
+<pre><code>
+$ ./pants run hello
+...
+Hello world
+...
+</code></pre>
+</section>
+
+
+<section>
+<h2>Pants Binary</h2>
+<pre><code>
+$ ./pants binary hello
+...
+$ ./dist/hello.pex 
+Hello world
+</code></pre>
+</section>
+
+<section><h2>History</h2>
+<ul>
+<li class="fragment">Loosely based on Blaze</li>
+<li class="fragment">Written at Twitter</li>
+<li class="fragment">Adopted by Square, Medium, FourSquare</li>
+</section>
+
+<section>
+<h2>Root discovery</h2>
+Look for <code>pants</code>
+</section>
+
+<section>
+<h2>Install</h2>
+<ul>
+<li class="fragment">virtualenv</li>
+<li class="fragment">curl shell script</li>
+<li class="fragment">pex</li>
+</ul>
+</section>
+
+<section>
+<h2>Reproducible install</h2>
+
+Disclaimer
+</section>
+
+<section>
+<h2>Reproducible install</h2>
+Bootstrap: 
+
+<pre><code>
+$ PIP_URL="https://pypi.python.org/[.....]/pip-8.1.2.tar.gz"
+$ mkdir vendor/
+$ curl -O PIP_URL
+$ mv pip-* vendor/
+$ git add vendor && git commit -a -m 'Added pip ball'
+</code></pre>
+</section>
+
+<section>
+<h2>Reproducible install</h2>
+
+Pants:
+<pre><code># ...imports...
+HERE = os.path.dirname(os.path.abspath(sys.argv[0]))
+PANTS = os.path.join(HERE, 'build/pants.pex')
+PENV = os.path.join(HERE, 'build/penv')
+VENDOR = os.path.join(HERE, 'vendor')
+cc = subprocess.check_call
+if not os.path.exists(PANTS):
+  if os.path.exists(PENV): shutil.rmtree(PENV)
+  cc(['virtualenv', PENV])
+  cc([os.path.join(PENV, 'bin/pip'), 'install', '--upgrade',
+      'pip', 'pantsbuild.pants',
+      '--no-index', '--find-links', VENDOR])
+  cc([os.path.join(PENV, 'bin/pex'), '--no-wheel',
+      '--repo', VENDOR, '--no-index', '--output-file', PANTS,
+      '-m', 'pants.bin.pants_exe', 'pantsbuild.pants'])
+os.execv(PANTS, [PANTS] + sys.argv[1:])
+</code></pre>
+</section>
+
+<section>
+<h2>Reproducible install</h2>
+
+Revendor pt.1:
+
+<pre><code># ...imports...
+HERE = os.path.dirname(os.path.abspath(sys.argv[0]))
+BUILD = os.path.join(HERE, 'build')
+PENV = os.path.join(BUILD, 'revenvdor')
+VENDOR = os.path.join(HERE, 'vendor')
+NEW_VENDOR = os.path.join(BUILD, 'new-vendor')
+if os.path.exists(PENV): shutil.rmtree(PENV)
+cc = subprocess.check_call
+cc(['virtualenv', PENV])
+cc([os.path.join(PENV, 'bin/pip'), 'install', '--upgrade',
+    'pip', '--no-index', '--find-links', VENDOR])
+if os.path.exists(NEW_VENDOR): shutil.rmtree(NEW_VENDOR)
+os.makedirs(NEW_VENDOR)
+cc([os.path.join(PENV, 'bin/pip'), 'download', 
+    '--no-binary', ':all:', 'pantsbuild.pants', 'pip'],
+   cwd=NEW_VENDOR)
+</code></pre>
+</section>
+
+
+<section>
+<h2>Reproducible install</h2>
+
+Revendor pt.2:
+
+<pre><code>old_files = set(os.listdir(VENDOR))
+new_files = set(os.listdir(NEW_VENDOR))
+removed = old_files - new_files
+if removed:
+    cc(['git', 'rm'] +
+       [os.path.join(VENDOR, fname) for fname in removed])
+added = new_files - old_files
+for fname in new_files - old_files:
+    shutil.copy(os.path.join(NEW_VENDOR, fname),
+                os.path.join(VENDOR, fname))
+cc(['git', 'add', VENDOR])
+</code></pre>
+</section>
+
+<section>
+<h2>Server</h2>
+
+<pre><code>$ ./pants server
+INFO] Launched server with pid 16959 at http://localhost:42516
+</code></pre>
+
+<img src="pants-shot.png" />
+</section>
+
+<section>
+<h2>pants.ini</h2>
+
+<ul>
+<li class="fragment">Has to be there</li>
+<li class="fragment">Command line option mapping</li>
+</ul>
+
+</section>
+
+<section><h2>pants.ini overrides</h2>
+
+<pre><code>
+$ PANTS_CONFIG_OVERRIDE="['pants-other.ini']" ./pants ...
+</code></pre>
+
+</section>
+
+<section>
+<h2>pants-ci.ini</h2>
+
+<pre><code>
+[GLOBAL]
+enable_pantsd: False
+</code></pre>
+
+</section>
+
+<section>
+<h2>BUILD</h2>
+
+<ul>
+<li class="fragment">Defines sources, dependencies</li>
+<li class="fragment">Build hints</li>
+</ul>
+</section>
+
+<section>
+<h2>python_binary</h2>
+
+<pre><code>
+$ cat BUILD 
+python_binary(
+    name = 'hello',
+    source = 'hello.py',
+)
+$ cat hello.py 
+print("Hello world")
+</code></pre>
+
+</section>
+
+<section>
+<h2>entry_point</h2>
+
+<pre><code>
+$ cat BUILD 
+python_binary(
+    name = 'hello2',
+    source = 'hello2.py',
+    entry_point = 'hello2:main',
+)
+$ cat hello2.py 
+def main():
+    print("Hello world")
+</code></pre>
+
+</section>
+
+<section>
+<h2>python_library</h2>
+
+<ul>
+<li class="fragment">Does not produce output</li>
+<li class="fragment">Good dependency target</li>
+</ul>
+
+</section>
+
+<section>
+<h2>python_library Example</h2>
+
+<pre><code>libhello/BUILD
+  python_binary(name='hellobin',
+      source='main.py',
+      dependencies=[":libhello"])
+  python_library(name="libhello",
+      sources=['hello.py'])
+libhello/hello.py
+  def greet():
+      return "Hello world"
+libhello/main.py
+  from hello import greet
+  print(greet())
+$ ./pants binary libhello:hellobin
+...
+$ ./dist/hellobin.pex 
+Hello world
+</code></pre>
+</section>
+
+<section><h2>python_test</h2>
+
+<ul>
+<li class="fragment">Runs tests</li>
+<li class="fragment">Uses py.test</li>
+</ul>
+</section>
+
+<section><h2>python_test Example</h2>
+
+<pre><code>
+$ cat testhello/BUILD 
+python_tests(
+    name = 'hello-test',
+    sources = ['test_hello.py'],
+)
+$ cat testhello/test_hello.py 
+def test_something():
+    assert 1 == 2
+</code></pre>
+
+</section>
+
+<section><h2>Backends</h2>
+<pre><code>
+[DEFAULT]
+backend_packages: [
+    "pants.contrib.python.checks",
+]
+</code></pre>
+</section>
+
+<section>
+<h2>3rd Party Pattern</h2>
+<p>Concentrate all requirements in one place</p>
+</section>
+
+<section>
+<h2>3rd Party BUILD</h2>
+
+<pre><code>
+$ cat 3rdparty/python
+python_requirement_library(
+  name='ansicolors',
+  requirements=[
+    python_requirement(name='ansicolors',
+         requirement='ansicolors==1.0.2'),
+  ])
+</code></pre>
+</section>
+
+<section>
+<h2>Local code BUILD</h2>
+
+<pre><code>
+$ cat greet/BUILD
+python_library(name='greet',
+  dependencies=[
+    '3rdparty/python:ansicolors',
+  ],
+  sources=globs('*.py'),
+)
+</code></pre>
+
+</section>
+
+<section>
+<h2>Using requirements.txt</h2>
+
+<pre><code>
+$ cat 3rdparty/python/requirements.txt
+ansicolors==1.0.2
+$ cat 3rdparty/python/BUILD
+python_requirements()
+</code></pre>
+</section>
+
+
+<section>
+<h2>Alternative repositories</h2>
+
+<pre><code>
+$ cat pants.ini
+[python-repos]
+indexes: [URL]
+</code></pre>
+
+</section>
+
+<section>
+<h2>Plugin types</h2>
+
+<ul>
+<li>Loose</li>
+<li>Built</li>
+</ul>
+</section>
+
+<section><h1>Q&A</h1></section>
+
+			</div>
+		</div>
+
+		<script src="reveal.js-3.3.0/lib/js/head.min.js"></script>
+		<script src="reveal.js-3.3.0/js/reveal.js"></script>
+
+		<script>
+			// More info https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				history: true,
+
+				// More info https://github.com/hakimel/reveal.js#dependencies
+				dependencies: [
+					{ src: 'reveal.js-3.3.0/plugin/markdown/marked.js' },
+					{ src: 'reveal.js-3.3.0/plugin/markdown/markdown.js' },
+					{ src: 'reveal.js-3.3.0/plugin/notes/notes.js', async: true },
+					{ src: 'reveal.js-3.3.0/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+				]
+			});
+		</script>
+	</body>
+</html>
