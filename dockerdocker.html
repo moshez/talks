@@ -1,0 +1,255 @@
+
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Building Docker with Docker</title>
+
+		<link rel="stylesheet" href="reveal.js-3.3.0/css/reveal.css">
+		<link rel="stylesheet" href="reveal.js-3.3.0/css/theme/serif.css">
+
+		<!-- Theme used for syntax highlighting of code -->
+		<link rel="stylesheet" href="reveal.js-3.3.0/lib/css/zenburn.css">
+
+		<!-- Printing and PDF exports -->
+		<script>
+			var link = document.createElement( 'link' );
+			link.rel = 'stylesheet';
+			link.type = 'text/css';
+			link.href = window.location.search.match( /print-pdf/gi ) ? 'reveal.js-3.3.0/css/print/pdf.css' : 'reveal.js-3.3.0/css/print/paper.css';
+			document.getElementsByTagName( 'head' )[0].appendChild( link );
+		</script>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+<section>
+<h1>BuildDocker w/Docker</h1>
+<h2>Yo Dawg</h2>
+<h3>Moshe Zadka</h3>
+<h3><a href="https://github.com/moshez">https://github.com/moshez</a></h3>
+</section>
+
+<section>
+<h1>Motivation</h1>
+</section>
+
+<section>
+<h2>Build desirata</h2>
+<ul>
+<li class="fragment">Portable</li>
+<li class="fragment">Reproducible</li>
+<li class="fragment">Fast</li>
+</ul>
+</section>
+
+<section>
+<h2>Today</h2>
+<p class="fragment">Not fast</p>
+</section>
+
+<section>
+<h2>Why containers?</h2>
+<ul>
+<li class="fragment">Portable</li>
+<li class="fragment">Self-contained</li>
+</ul>
+<p class="fragment">Wait...</p>
+</section>
+
+<section>
+<h2>Why containers as build environments?</h2>
+<ul>
+<li class="fragment">Portable (diverse dev environment)</li>
+<li class="fragment">Self-contained (compilers, libraries...)</li>
+</ul>
+</section>
+
+<section>
+<h2>Practical advice</h2>
+<ul>
+<li class="fragment">Bugs usually in your code</li>
+<li class="fragment">Manage compiler update</li>
+<li class="fragment">You want compiler updates</li>
+</ul>
+</section>
+
+<section>
+<h2>Building a Build Container(pt 1)</h2>
+
+<pre><code>
+$ cat Dockerfile
+FROM centos:7
+RUN yum update ....
+ENTRYPOINT ["/src/inside-build.py"]
+</code></pre>
+</section>
+
+<section>
+<h2>Building a Build Container (pt 2)</h2>
+
+<pre><code>
+$ cat buildbuild.py
+import time
+import subprocess
+
+DATE=time.strftime("%Y-%m-%d-%H-%M-%S")
+IMAGE="moshez/awesome-builder:{}".format(DATE)
+subprocess.check_call(["docker", "build", "-t", IMAGE, "."])
+</code></pre>
+</section>
+
+<section>
+<h2>Running Docker in Docker Naively</h2>
+<ul>
+<li class="fragment">Ephemeral Container Image Cache bad.</li>
+<li class="fragment">Shared Container Image Cache bad.</li>
+</ul>
+</section>
+
+<section>
+<h2>Running Docker in Docker Correctly</h2>
+<ul>
+<li class="fragment">Server</li>
+<li class="fragment">Socket</li>
+<li class="fragment"><code>-v /var/run/docker.sock:/var/run/docker.sock</code></li>
+</ul>
+</section>
+
+<section>
+<h2>Build script (pt 1)</h2>
+<pre><code>
+$ cat Dockerfile
+FROM moshez/awesome-builder:2017-01-18-18-30-00
+COPY /src .
+$ cat outside-build.py
+import subprocess
+SOCKET="/var/run/docker.sock"
+MOUNT="{}:{}".format(SOCKET, SOCKET)
+subprocess.check_call(["docker", "build", "-t", "temp-builder", "."])
+subprocess.check_call(["docker", "run", "--rm", "-it", "-v", MOUNT,
+                       "temp-builder"])
+</code></pre>
+</section>
+
+<section>
+<h2>Build script (interlude pt 1)</h2>
+
+<ul>
+<li class="fragment">Short</li>
+<li class="fragment">Somewhat portable</li>
+<li class="fragment">Reimplemntable</li>
+</ul>
+</section>
+
+<section>
+<h2>Build script (interlude pt 2)</h2>
+
+<pre><code>
+--net=none # AKA Vendoring
+</code></pre>
+</section>
+
+
+<section>
+<h2>Build script (pt 2)</h2>
+
+<pre><code>
+$ cat inside-build.py
+#!/usr/bin/python
+
+# * Consistent environment
+# * Tools place/version
+go build # ...
+HASH=subprocess.check_output(["git", "rev-parse", "HEAD"])
+IMAGE="moshez/awesome-runner:{}".format(HASH)
+shutil.copy("/..../go-build-output", "/src/go-output")
+subprocess.check_call(["docker", "build", "-t", IMAGE,
+                       "-f", "/src/run.docker", "/src"])
+</code></pre>
+</section>
+
+<section>
+<h2>Dockerfile for Running</h2>
+
+<pre><code>
+FROM centos:7.2.511
+COPY /go-output go-output
+ENTRYPOINT ["/go-output"]
+</code></pre>
+</section>
+
+<section>
+<h2>Missing</h2>
+
+<ul>
+<li class="fragment">Updating Base RPMs</li>
+<li class="fragment">Caching intermediate build outputs</li>
+</ul>
+</section>
+
+<section>
+<h2>Updating Base RPMs</h2>
+
+<ul>
+<li class="fragment">Periodic rebuild</li>
+<li class="fragment">RPMs in repository</li>
+</ul>
+</section>
+
+<section>
+<h2>Caching</h2>
+
+<ul>
+<li class="fragment">Ad-hoc <code>-v</code></li>
+<li class="fragment">Create from CI, use everywhere</li>
+<li class="fragment">Shared cloud storage</li>
+</ul>
+</section>
+
+<section>
+<h2>Summary</h2>
+
+<ul>
+<li class="fragment">Containers are pretty cool...</li>
+<li class="fragment">...as build environments...</li>
+<li class="fragment">...and as build targets...</li>
+<li class="fragment">...and especially at both!</li>
+<li class="fragment">But, as always with containers...</li>
+<li class="fragment">some amount of local tooling is unavoidable!</li>
+</ul>
+</section>
+
+
+<section>
+<h2>Q&A</h2>
+
+A question is something that you do not know the answer to!
+</section>
+
+
+			</div>
+		</div>
+
+		<script src="reveal.js-3.3.0/lib/js/head.min.js"></script>
+		<script src="reveal.js-3.3.0/js/reveal.js"></script>
+
+		<script>
+			// More info https://github.com/hakimel/reveal.js#configuration
+			Reveal.initialize({
+				history: true,
+
+				// More info https://github.com/hakimel/reveal.js#dependencies
+				dependencies: [
+					{ src: 'reveal.js-3.3.0/plugin/markdown/marked.js' },
+					{ src: 'reveal.js-3.3.0/plugin/markdown/markdown.js' },
+					{ src: 'reveal.js-3.3.0/plugin/notes/notes.js', async: true },
+					{ src: 'reveal.js-3.3.0/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
+				]
+			});
+		</script>
+	</body>
+</html>
